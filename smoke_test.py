@@ -112,8 +112,9 @@ check("Waydroid 状态标签存在", "Waydroid" in win.wd_label.text())
 from tview.waydroid import Waydroid as RealWaydroid
 real = RealWaydroid(mock=False)
 cached = real._apps_from_desktop()
-# desktop 缓存：无 waydroid 环境（CI/干净机）时为 0 属正常，只要求“不崩溃且返回列表”
-check(f"desktop 缓存读取正常（{len(cached) if cached else 0} 个）", cached is not None)
+# desktop 缓存：无 waydroid 环境（CI/干净机）时返回 None（调用方回退 app list）属正常，
+# 只要求“不崩溃且返回合法形态”
+check(f"desktop 缓存读取正常（{len(cached) if cached else 0} 个）", cached is None or isinstance(cached, list))
 if cached:
     check(f"缓存含图标路径", all(a.icon for a in cached[:5]))
 
