@@ -103,6 +103,7 @@ class MainWindow(QWidget):
         self._start_timers()
         self._dock_hide()
         self._sync_autostart()  # 启动时按配置补写/清理自启文件（默认开但文件可能从未写过）
+        self._start_vnc()  # kiosk 模式下启动 VNC 远程（wayvnc）
         if remote.keyd_mode:
             # keyd 模式下无 evdev 设备上报，直接标记在线。
             # 注意：必须在 _build_ui() 之后 emit，否则 on_remote_state 同步执行时
@@ -492,13 +493,20 @@ class MainWindow(QWidget):
         self.show_home()
 
     def _hide_waydroid_window(self) -> None:
-        """用 wlrctl 最小化 Waydroid 窗口（wlroots 系合成器；无则仅记录）。"""
+        """回主页：把焦点切回 TVIEW。
+        kiosk（labwc）：wlrctl focus tview（app_id 匹配，已实测）。
+        桌面（GNOME）：wlrctl minimize（wlroots 系合成器；无则仅记录）。"""
         if self.config.mock or not shutil.which("wlrctl"):
             return
         try:
-            subprocess.run(["wlrctl", "window", "minimize"], timeout=5,
-                           capture_output=True)
-            logger.info("已请求最小化 Waydroid 窗口")
+            if self._is_kiosk():
+                subprocess.run(["wlrctl", "window", "focus", "tview"], timeout=5,
+                               capture_output=True)
+                logger.info("焦点已切回 TVIEW")
+            else:
+                subprocess.run(["wlrctl", "window", "minimize"], timeout=5,
+                               capture_output=True)
+                logger.info("已请求最小化 Waydroid 窗口")
         except Exception as e:
             logger.warning("隐藏 Waydroid 窗口失败: %s", e)
 
@@ -840,6 +848,20 @@ class MainWindow(QWidget):
             logger.warning("查询开机免密状态失败: %s", e)
         return None
 
+    def _autologin_session(self) -> str:
+        """查询当前 autologin 会话：tview / gnome（无权限时默认 gnome）。"""
+        script = "/usr/local/sbin/tview-autologin.sh"
+        if self.config.mock or not Path(script).exists():
+            return "gnome"
+        try:
+            r = subprocess.run(["sudo", "-n", script, "status"],
+                               capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and "session=tview" in r.stdout:
+                return "tview"
+        except Exception as e:
+            logger.warning("查询 autologin 会话失败: %s", e)
+        return "gnome"
+
     def _apply_autologin(self, enabled: bool) -> tuple[bool, str]:
         """设置 GDM 开机免密（需要 NOPASSWD 白名单执行 /usr/local/sbin/tview-autologin.sh）。"""
         if self.config.mock:
@@ -853,6 +875,29 @@ class MainWindow(QWidget):
                                capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
                 logger.info("开机免密已%s", "开启" if enabled else "关闭")
+                return True, ""
+            return False, (r.stderr or r.stdout or "unknown").strip()
+        except Exception as e:
+            return False, str(e)
+
+    def _apply_mode(self, mode: str) -> tuple[bool, str]:
+        """切换运行模式（L1/L2 整合）：tview=盒子模式 / gnome=桌面模式 / off=正常登录。
+        本质是 autologin 会话切换（tview-autologin.sh on <session>）。"""
+        if self.config.mock:
+            logger.info("运行模式(%s) - mock", mode)
+            return True, ""
+        script = "/usr/local/sbin/tview-autologin.sh"
+        if not Path(script).exists():
+            return False, tr("autologin_no_perm")
+        try:
+            if mode == "off":
+                cmd = ["sudo", "-n", script, "off"]
+            else:
+                cmd = ["sudo", "-n", script, "on", mode]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                logger.info("运行模式已切换: %s", mode)
+                self.config.set("mode", mode)
                 return True, ""
             return False, (r.stderr or r.stdout or "unknown").strip()
         except Exception as e:
@@ -885,9 +930,9 @@ class MainWindow(QWidget):
             self._sys_command(["sudo", "shutdown", "-h", "now"], "shutdown")
 
     def exit_box(self) -> None:
-        """退出电视盒子（回 GNOME 桌面），带确认防误触。
-        默认（exit_nopasswd=False）：退出即锁屏，需要密码进桌面（防免密会话被他人利用）。
-        设置里可改为免密直退。"""
+        """退出电视盒子。
+        kiosk 模式（cage 会话）：终止会话回 GDM 登录界面（要密码，天然安全）。
+        桌面模式（GNOME 会话）：默认锁屏（exit_nopasswd=False），可设免密直退。"""
         box = QMessageBox(self)
         box.setWindowTitle(tr("power_exit"))
         box.setText(tr("exit_confirm"))
@@ -896,10 +941,48 @@ class MainWindow(QWidget):
         box.exec_()
         if box.clickedButton() == ok:
             logger.info("退出电视盒子")
-            if not self.config.get("exit_nopasswd", False):
+            if self._is_kiosk():
+                self._terminate_session()
+            elif not self.config.get("exit_nopasswd", False):
                 self._lock_screen()
             self.remote.stop()
             QApplication.instance().quit()
+
+    def _start_vnc(self) -> None:
+        """kiosk 模式（labwc）下启动 wayvnc，供局域网 VNC 远程查看/操作。
+        密码空则无密码（局域网信任环境）；有密码用 --password。"""
+        if self.config.mock or not self._is_kiosk():
+            return
+        if not shutil.which("wayvnc"):
+            logger.info("wayvnc 未安装，跳过 VNC")
+            return
+        try:
+            pw = str(self.config.get("vnc_password", "") or "")
+            cmd = ["wayvnc"]
+            if pw:
+                cmd += ["--password", pw]
+            subprocess.Popen(cmd)
+            logger.info("VNC 已启动 (wayvnc%s)", " 带密码" if pw else " 无密码")
+        except Exception as e:
+            logger.error("wayvnc 启动失败: %s", e)
+
+    def _is_kiosk(self) -> bool:
+        """是否运行在 kiosk 模式（TVIEW 专用 labwc 会话，L2）。
+        检测：GDM 会话名 tview（XDG_SESSION_DESKTOP / GDMSESSION）。"""
+        import os
+        desk = os.environ.get("XDG_SESSION_DESKTOP", "") or os.environ.get("GDMSESSION", "")
+        return desk.lower() == "tview"
+
+    def _terminate_session(self) -> None:
+        """终止当前会话（回 GDM 登录界面）。kiosk 模式退出盒子用。"""
+        if self.config.mock:
+            logger.info("终止会话 - mock")
+            return
+        try:
+            subprocess.Popen(["loginctl", "terminate-session"])
+            logger.info("已终止会话（回登录界面）")
+        except Exception as e:
+            logger.error("终止会话失败: %s", e)
 
     def _lock_screen(self) -> None:
         """锁屏（GNOME 会话锁，解锁需密码）。退出盒子默认动作，防免密桌面被他人利用。"""
@@ -1095,6 +1178,29 @@ class SettingsDialog(QDialog):
             self.autologin_chk.toggled.connect(self._toggle_autologin)
         root.addWidget(self.autologin_chk)
 
+        # 运行模式（L1/L2 整合：盒子模式 / 桌面模式 / 正常登录）
+        row_mode = QHBoxLayout()
+        row_mode.addWidget(QLabel(tr("mode")))
+        self.mode_box = QComboBox()
+        self.mode_box.addItem(tr("mode_kiosk"), "tview")
+        self.mode_box.addItem(tr("mode_desktop"), "gnome")
+        self.mode_box.addItem(tr("mode_normal"), "off")
+        st = self.parent()._autologin_status() if self.parent() else None
+        if st is None:
+            self.mode_box.setEnabled(False)
+            self.mode_box.setToolTip(tr("autologin_no_perm"))
+        else:
+            session = self.parent()._autologin_session() if self.parent() else "gnome"
+            cur = "tview" if session == "tview" else ("gnome" if st else "off")
+            idx = self.mode_box.findData(cur)
+            self.mode_box.setCurrentIndex(idx if idx >= 0 else 0)
+            self.mode_box.currentIndexChanged.connect(self._change_mode)
+        row_mode.addWidget(self.mode_box, 1)
+        root.addLayout(row_mode)
+        hint_mode = QLabel(tr("mode_hint"))
+        hint_mode.setWordWrap(True)
+        root.addWidget(hint_mode)
+
         # 退出盒子后是否免密进桌面（默认关=退出时锁屏，更安全）
         self.exit_nopasswd_chk = QCheckBox(tr("exit_nopasswd"))
         self.exit_nopasswd_chk.setChecked(bool(config.get("exit_nopasswd", False)))
@@ -1220,6 +1326,19 @@ class SettingsDialog(QDialog):
         if ok:
             self.changed = True
             QMessageBox.information(self, tr("dlg_settings"), tr("autologin_restart"))
+        else:
+            QMessageBox.warning(self, tr("dlg_settings"), err or tr("autologin_fail"))
+
+    def _change_mode(self, idx: int) -> None:
+        """运行模式切换（L1/L2 整合）：盒子模式/桌面模式/正常登录，调 autologin 脚本。"""
+        parent = self.parent()
+        if parent is None:
+            return
+        mode = self.mode_box.itemData(idx)
+        ok, err = parent._apply_mode(mode)
+        if ok:
+            self.changed = True
+            QMessageBox.information(self, tr("dlg_settings"), tr("mode_restart"))
         else:
             QMessageBox.warning(self, tr("dlg_settings"), err or tr("autologin_fail"))
 

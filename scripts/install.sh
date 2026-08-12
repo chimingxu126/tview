@@ -1,11 +1,11 @@
 #!/bin/bash
 # ============================================================
-# 启视·TVIEW v0.1.0-beta.1 安装器（引导下载版）
+# 启视·TVIEW v0.2.0-beta.1 安装器（引导下载版）
 #
 # 设计原则：
 #   1. 不捆绑任何第三方专有资产（libhoudini / 商业 APK），一律引导下载或本地提供
 #   2. 幂等：可重复执行，失败可重跑
-#   3. 目标：一台干净 Ubuntu 24.04 跑完本脚本 = 与开发机一致的可运行盒子
+#   3. 目标：一台干净 Ubuntu 24.04/26.04 跑完本脚本 = 与开发机一致的可运行盒子
 #
 # 用法: sudo bash install.sh [选项]
 #   --local-images      使用 assets/images/ 本地镜像离线 waydroid init（省约 2GB 下载）
@@ -13,8 +13,11 @@
 #   --tview-bin PATH    指定 tview 二进制位置（默认同目录 ./tview）
 #   --skip-apps         跳过内置 APK 安装（当贝/F-Droid）
 #   --skip-tview        跳过 tview 本体部署（只做系统层 + Waydroid + 兼容层）
+#   --no-autostart      不写开机自启（默认写；交互安装时会让用户选择）
+#   --desktop-mode      桌面模式（autologin 进 GNOME + 自启）；默认盒子模式（labwc kiosk）
+#   --no-ask            不交互询问（全部用默认值）
 #
-# 依据: DEVELOPMENT.md §2.2 / §9（真机实测）
+# 依据: DEVELOPMENT.md §2.2 / §9（真机实测）/ §10（L2 kiosk）
 # ============================================================
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -28,6 +31,9 @@ LOCAL_ASSETS=""
 TVIEW_BIN=""
 SKIP_APPS=0
 SKIP_TVIEW=0
+AUTOSTART_ASK=1
+AUTOSTART_SET=1
+DESKTOP_MODE=0
 STEP=0
 
 while [ $# -gt 0 ]; do
@@ -37,10 +43,29 @@ while [ $# -gt 0 ]; do
     --tview-bin)     shift; TVIEW_BIN="$1" ;;
     --skip-apps)     SKIP_APPS=1 ;;
     --skip-tview)    SKIP_TVIEW=1 ;;
+    --no-autostart)  AUTOSTART_ASK=0; AUTOSTART_SET=0 ;;
+    --desktop-mode)  DESKTOP_MODE=1 ;;
+    --no-ask)        AUTOSTART_ASK=0 ;;
     *) echo "未知参数: $1（忽略）" ;;
   esac
   shift
 done
+
+# 交互询问：是否开机自启（默认开）与运行模式（默认盒子模式）
+if [ "${AUTOSTART_ASK}" = "1" ] && [ -t 0 ]; then
+  echo
+  read -r -p "开机自动启动 TVIEW？[Y/n] " _ans
+  case "$_ans" in
+    n|N|no) AUTOSTART_SET=0 ;;
+    *)      AUTOSTART_SET=1 ;;
+  esac
+  echo
+  read -r -p "运行模式：盒子模式（开机直达 TVIEW，最安全）[Y/n，n=桌面模式] " _ans2
+  case "$_ans2" in
+    n|N|no) DESKTOP_MODE=1 ;;
+    *)      DESKTOP_MODE=0 ;;
+  esac
+fi
 
 say() { STEP=$((STEP+1)); echo; echo "===== [$STEP/11] $1 ====="; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "❌ 缺少 $1，先: sudo apt install -y $1"; exit 1; }; }
@@ -92,11 +117,11 @@ if ! command -v waydroid >/dev/null 2>&1; then
   echo "deb [signed-by=/usr/share/keyrings/waydroid.gpg] https://repo.waydro.id/ ${CODENAME} main" \
     > /etc/apt/sources.list.d/waydroid.list
   echo ">>> 使用 ${CODENAME} 源安装 waydroid"
-  apt-get update -qq && apt-get install -y waydroid python3-pyqt5 python3-evdev python3-yaml wlrctl || {
+  apt-get update -qq && apt-get install -y waydroid python3-pyqt5 python3-evdev python3-yaml wlrctl labwc wayvnc || {
     echo "❌ waydroid 安装失败（看上面依赖错误；若为 python3-gbinder 冲突，确认源代号是否匹配系统版本）"
     exit 1; }
 else
-  apt-get install -y python3-pyqt5 python3-evdev python3-yaml wlrctl 2>/dev/null || true
+  apt-get install -y python3-pyqt5 python3-evdev python3-yaml wlrctl labwc wayvnc 2>/dev/null || true
 fi
 if command -v waydroid >/dev/null 2>&1; then
   echo "✅ waydroid: $(waydroid --version 2>/dev/null | head -1 || echo installed)"
@@ -239,6 +264,18 @@ cd "$(dirname "$0")"
 exec ./tview --prod
 SH
       chmod +x /opt/tview/start.sh
+      # TVIEW kiosk 会话（L2）：GDM 登录界面可选“启视·TVIEW（盒子模式）”，
+      # labwc 合成器，tview 退出即会话结束回登录界面
+      mkdir -p /usr/share/wayland-sessions
+      install -m 644 /dev/stdin /usr/share/wayland-sessions/tview.desktop <<'EOF'
+[Desktop Entry]
+Name=启视·TVIEW（盒子模式）
+Name[en]=TVIEW (Box Mode)
+Comment=TV box kiosk session (labwc)
+Exec=/usr/bin/labwc -S /opt/tview/tview --prod
+Type=Application
+EOF
+      echo "✅ kiosk 会话已注册（/usr/share/wayland-sessions/tview.desktop）"
       # 图标与应用菜单入口（GNOME 应用列表可见，随时可启动）
       cp -v assets/ui/tview.png /opt/tview/assets/ui/ 2>/dev/null || true
       APPS_DIR="$USER_HOME/.local/share/applications"
@@ -247,7 +284,7 @@ SH
 [Desktop Entry]
 Type=Application
 Name=启视·TVIEW
-Name[en]=QiShi TVIEW
+Name[en]=TVIEW
 Comment=TV box launcher
 Exec=/opt/tview/tview --prod
 Icon=/opt/tview/assets/ui/tview.png
@@ -255,9 +292,10 @@ Terminal=false
 Categories=Utility;
 EOF
       chown -R "$USER_NAME:$USER_NAME" "$APPS_DIR" 2>/dev/null || true
-      # 开机自启（autostart）
-      mkdir -p "$USER_HOME/.config/autostart"
-      cat > "$USER_HOME/.config/autostart/tview.desktop" <<EOF
+      # 开机自启（autostart，默认开；--no-autostart 或交互选 n 时跳过）
+      if [ "${AUTOSTART_SET}" = "1" ]; then
+        mkdir -p "$USER_HOME/.config/autostart"
+        cat > "$USER_HOME/.config/autostart/tview.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=启视·TVIEW
@@ -267,10 +305,14 @@ Icon=/opt/tview/assets/ui/tview.png
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
-      chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
+        chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
+        echo "✅ 开机自启已配置"
+      else
+        echo "ℹ️ 已按选择跳过开机自启（可稍后: 设置 → 开机自动启动）"
+      fi
       update-desktop-database "$APPS_DIR" 2>/dev/null || true
       if [ -x /opt/tview/tview ]; then
-        echo "✅ tview 部署完成: /opt/tview/tview（自启 + 应用菜单入口）"
+        echo "✅ tview 部署完成: /opt/tview/tview（应用菜单入口已注册）"
       else
         echo "❌ /opt/tview/tview 不可执行，部署失败"
       fi
@@ -337,9 +379,13 @@ if [ -x /usr/local/sbin/tview-autologin.sh ]; then
 ${USER_NAME} ALL=(ALL) NOPASSWD: /usr/local/sbin/tview-autologin.sh
 EOF
   chmod 440 /etc/sudoers.d/tview-autologin
-  /usr/local/sbin/tview-autologin.sh on >/dev/null 2>&1 \
-    && echo "✅ 开机免密已开启（GDM autologin → GNOME → autostart tview）" \
-    || echo "⚠️ 免密开启失败（手动: sudo /usr/local/sbin/tview-autologin.sh on）"
+  # 盒子模式 L2：autologin 直接进 TVIEW kiosk 会话（labwc）；
+  # 桌面模式（排障/远程）：autologin 进 GNOME + autostart tview，可设 DESKTOP_MODE=1 切换
+  AUTOLOGIN_SESSION="tview"
+  [ "${DESKTOP_MODE:-0}" = "1" ] && AUTOLOGIN_SESSION="gnome"
+  /usr/local/sbin/tview-autologin.sh on "$AUTOLOGIN_SESSION" >/dev/null 2>&1 \
+    && echo "✅ 开机免密已开启（autologin 会话=${AUTOLOGIN_SESSION}）" \
+    || echo "⚠️ 免密开启失败（手动: sudo /usr/local/sbin/tview-autologin.sh on ${AUTOLOGIN_SESSION}）"
 fi
 
 # ---------- 10. 重启后自启路径 ----------
