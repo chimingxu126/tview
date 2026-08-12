@@ -191,7 +191,7 @@ else
     need curl
     VER=$(curl -s https://api.github.com/repos/chimingxu/tview/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+' | head -1)
     if [ -n "$VER" ]; then
-      curl -L -o ./tview "https://github.com/chimingxu/tview/releases/download/${VER}/tview" && chmod +x ./tview && BIN="./tview"
+      curl -L -o ./tview "https://github.com/chimingxu126/tview/releases/download/${VER}/tview" && chmod +x ./tview && BIN="./tview"
     fi
   fi
   if [ -z "$BIN" ]; then

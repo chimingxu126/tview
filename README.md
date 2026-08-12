@@ -17,7 +17,7 @@
 ## 安装（干净 Ubuntu 24.04）
 
 ```bash
-git clone https://github.com/chimingxu/tview.git
+git clone https://github.com/chimingxu126/tview.git
 cd tview
 sudo bash scripts/install.sh          # 完整安装
 # 可选参数：
