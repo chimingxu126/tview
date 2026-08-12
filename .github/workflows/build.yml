@@ -22,7 +22,7 @@ jobs:
 
       - name: Python 依赖
         run: |
-          pip install pyinstaller evdev pyyaml
+          pip install pyinstaller evdev pyyaml pyqt5
 
       - name: 冒烟测试（mock 模式，无需硬件）
         run: |
