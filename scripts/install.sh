@@ -218,6 +218,9 @@ else
     echo "⚠️ 未找到 tview 二进制。请从 GitHub Releases 下载后放本目录，或: sudo bash scripts/install.sh --tview-bin /path/to/tview"
   else
     mkdir -p /opt/tview/assets
+    # 重装时旧实例可能在运行，先停掉（否则 cp 报“文本文件忙”）
+    pkill -f '/opt/tview/tview' 2>/dev/null || true
+    sleep 1
     if ! cp -v "$BIN" /opt/tview/tview; then
       echo "❌ 复制二进制失败: $BIN -> /opt/tview/tview"
     else
