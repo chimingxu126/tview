@@ -201,15 +201,17 @@ else
   say "部署 tview 到 /opt/tview"
   BIN=""
   if [ -n "$TVIEW_BIN" ] && [ -x "$TVIEW_BIN" ]; then BIN="$TVIEW_BIN"
-  elif [ -x "./tview" ]; then BIN="./tview"
-  elif [ -x "./dist/tview" ]; then BIN="./dist/tview"
+  elif [ -f "./tview" ] && [ -x "./tview" ]; then BIN="./tview"
+  elif [ -f "./dist/tview" ] && [ -x "./dist/tview" ]; then BIN="./dist/tview"
+  elif [ -f "./tview-bin" ] && [ -x "./tview-bin" ]; then BIN="./tview-bin"
   fi
   if [ -z "$BIN" ]; then
     echo ">>> 未找到本地二进制，尝试从 GitHub Release 下载最新版..."
     need curl
-    VER=$(curl -s https://api.github.com/repos/chimingxu/tview/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+' | head -1)
+    VER=$(curl -s https://api.github.com/repos/chimingxu126/tview/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+' | head -1)
     if [ -n "$VER" ]; then
-      curl -L -o ./tview "https://github.com/chimingxu126/tview/releases/download/${VER}/tview" && chmod +x ./tview && BIN="./tview"
+      # 注意：仓库内有 tview/ 包目录，下载到 tview-bin 避免冲突
+      curl -L -o ./tview-bin "https://github.com/chimingxu126/tview/releases/download/${VER}/tview" && chmod +x ./tview-bin && BIN="./tview-bin"
     fi
   fi
   if [ -z "$BIN" ]; then
