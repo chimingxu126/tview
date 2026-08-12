@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller 产物
+build/
+dist/
+*.spec.bak
+
+# 第三方专有资产（版权原因不入仓库，安装器引导下载或用户自备）
+# - libhoudini：Google/Microsoft WSA 专有二进制
+# - 商业 APK：当贝市场 / Foni 等
+assets/apks/
+assets/houdini/
+assets/images/
+
+# 日志与临时
+*.log
+*.part
+*.bak
+
+# 本地部署痕迹
+tview.out.log

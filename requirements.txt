@@ -1,0 +1,5 @@
+# 启视·TVIEW Launcher 阶段1
+# 依赖：PyQt5 evdev pyyaml
+PyQt5>=5.15
+evdev>=1.6
+pyyaml>=5.4
