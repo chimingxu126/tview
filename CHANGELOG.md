@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.0-beta.1] - 2026-08-12
+
+BETA 0.2：**L2 盒子模式（kiosk）落地**，安全模型升级为"遥控器唯一入口"。
+
+### 新增
+- **L2 kiosk 会话**：labwc 合成器 + TVIEW 专用会话（`/usr/share/wayland-sessions/tview.desktop`），开机直达 TVIEW，无桌面环境；退出盒子回登录界面（要密码）
+- **运行模式选择**（设置里可切换）：盒子模式 / 桌面模式（GNOME+自启）/ 正常登录——底层切换 GDM autologin 会话（tview-autologin.sh 扩展 `on|off|status [gnome|tview]`）
+- **VNC 远程**（wayvnc）：盒子模式自动启动，监听 `0.0.0.0:5900`，局域网 VNC 客户端可看可操作；`vnc_password` 可设密码
+- **窗口切换**：labwc 下回主页用 `wlrctl window focus tview`（app_id 匹配，实测通过）
+- **安装器交互**：询问是否开机自启（默认开）与运行模式（默认盒子）；`--no-ask`/`--desktop-mode`/`--no-autostart` 参数覆盖
+- 安装器装 labwc/wayvnc；英文 LOGO 去掉 "QiShi" 拼音（en 标题改为 TVIEW）
+- 文档中英双版：README.en.md / RELEASE_NOTES.en.md；版本号 `0.2.0-beta.1`
+
+### 技术选型
+- cage 合成器在 headless 后端触发 wlr_xdg_surface 断言崩溃 → **改用 labwc 0.9.3**（窗口管理完善、wlrctl focus 实测通过）
+- 远程方案：RustDesk 在 kiosk 会话不可用 → wayvnc（wlroots 原生 VNC）
+
+### 验证
+- 开发机：labwc+wayvnc+窗口切换实测；冒烟测试 30/30
+- VM（Ubuntu 26.04）：安装器全流程、盒子模式配置、VNC 局域网握手、模式切换 3 态、冒烟 29/29
+
+### 已知问题
+- VNC 远程输入在无 GPU 虚拟机（headless 缺 virtual-pointer 协议）不可用，真实硬件正常
+- 其余同 0.1.0-beta.1
+
 ## [0.1.0-beta.1] - 2026-08-12
 
 BETA 首个可发布版本。功能完备、冒烟测试 30/30，安装器重构为"引导下载"模式（不捆绑第三方专有资产）。

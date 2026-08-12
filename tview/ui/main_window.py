@@ -958,7 +958,7 @@ class MainWindow(QWidget):
             return
         try:
             pw = str(self.config.get("vnc_password", "") or "")
-            cmd = ["wayvnc"]
+            cmd = ["wayvnc", "0.0.0.0"]
             if pw:
                 cmd += ["--password", pw]
             subprocess.Popen(cmd)
