@@ -885,7 +885,9 @@ class MainWindow(QWidget):
             self._sys_command(["sudo", "shutdown", "-h", "now"], "shutdown")
 
     def exit_box(self) -> None:
-        """退出电视盒子（回 GNOME 桌面），带确认防误触。"""
+        """退出电视盒子（回 GNOME 桌面），带确认防误触。
+        默认（exit_nopasswd=False）：退出即锁屏，需要密码进桌面（防免密会话被他人利用）。
+        设置里可改为免密直退。"""
         box = QMessageBox(self)
         box.setWindowTitle(tr("power_exit"))
         box.setText(tr("exit_confirm"))
@@ -894,8 +896,21 @@ class MainWindow(QWidget):
         box.exec_()
         if box.clickedButton() == ok:
             logger.info("退出电视盒子")
+            if not self.config.get("exit_nopasswd", False):
+                self._lock_screen()
             self.remote.stop()
             QApplication.instance().quit()
+
+    def _lock_screen(self) -> None:
+        """锁屏（GNOME 会话锁，解锁需密码）。退出盒子默认动作，防免密桌面被他人利用。"""
+        if self.config.mock:
+            logger.info("锁屏 - mock")
+            return
+        try:
+            subprocess.Popen(["loginctl", "lock-session"])
+            logger.info("已触发锁屏")
+        except Exception as e:
+            logger.error("锁屏失败: %s", e)
 
     def _sys_command(self, cmd: list[str], label: str) -> None:
         if self.config.mock:
@@ -1080,6 +1095,15 @@ class SettingsDialog(QDialog):
             self.autologin_chk.toggled.connect(self._toggle_autologin)
         root.addWidget(self.autologin_chk)
 
+        # 退出盒子后是否免密进桌面（默认关=退出时锁屏，更安全）
+        self.exit_nopasswd_chk = QCheckBox(tr("exit_nopasswd"))
+        self.exit_nopasswd_chk.setChecked(bool(config.get("exit_nopasswd", False)))
+        self.exit_nopasswd_chk.toggled.connect(self._toggle_exit_nopasswd)
+        root.addWidget(self.exit_nopasswd_chk)
+        hint = QLabel(tr("exit_nopasswd_hint"))
+        hint.setWordWrap(True)
+        root.addWidget(hint)
+
         # 自定义遥控器映射入口
         btn_keymap = QPushButton(tr("keymap_btn"))
         btn_keymap.clicked.connect(self._open_keymap)
@@ -1173,6 +1197,11 @@ class SettingsDialog(QDialog):
         parent = self.parent()
         if parent is not None:
             parent._apply_autostart(v)
+
+    def _toggle_exit_nopasswd(self, v: bool) -> None:
+        """退出盒子免密开关：关（默认）=退出即锁屏，开=直接回桌面。"""
+        self.config.set("exit_nopasswd", v)
+        self.changed = True
 
     def _change_lang(self, idx: int) -> None:
         """语言切换：保存配置，提示重启生效（当前界面保持原语言直到重启）。"""

@@ -33,6 +33,7 @@ DEFAULTS = {
     "remote_keymap": {},          # 自定义遥控器映射 {Qt键值(int): 动作(str)}，空=用系统默认
     "language": "zh",            # 界面语言 zh/en（i18n.py，重启生效）
     "autologin": False,           # 开机免密直接进 TVIEW（GDM autologin，设置里可开关）
+    "exit_nopasswd": False,       # 退出盒子后免密进入桌面（默认关=退出时锁屏，更安全）
     "theme": "minimal",          # 主题：minimal/aurora/tech/space/bright/custom（theme.py）
     "custom_theme": {},           # 自定义主题配色覆盖（theme=自定义 时生效）
 }

@@ -160,3 +160,47 @@ scripts/install.sh      # v0.1 安装器（阶段 1 先做骨架）
 - Waydroid 菜单键：KEY_COMPOSE 安卓不认，需自定义 keylayout（/system/usr/keylayout）
 - 安装器补：安卓音量初始化、waydroid.background_start=true 验证
 - Cage 会话下验证音量键能否直达 Waydroid（wlroots 全设备转发，预期可行）
+
+---
+
+## 10. L2 kiosk 安全模式（路线图，下一版）
+
+> 背景：v0.1.0-beta.1 的安全模型 = GNOME autologin（免密进 TVIEW）+ 退出盒子锁屏（L1）。
+> 局限：只要 autologin 开着，TVIEW 后台时物理键盘/鼠标仍可操作免密桌面。
+> L2 = 去掉 GNOME 桌面，TVIEW 独占会话，遥控器为唯一入口——最接近真实电视盒子。
+
+### 10.1 架构
+
+```
+GDM 登录界面（要密码）
+ ├─ AutomaticLoginSession=tview  → cage -- /opt/tview/tview --prod   （盒子模式，开机直达）
+ ├─ 手动选 GNOME                 → 桌面排障（RustDesk/文件管理）
+ └─ 退出盒子（loginctl terminate-session）→ 回 GDM 登录界面（要密码）
+```
+
+- `/usr/share/wayland-sessions/tview.desktop`：`cage -- /opt/tview/tview --prod`
+- GDM `custom.conf`：`AutomaticLoginEnable=true` + `AutomaticLoginSession=tview`
+- keyd 系统服务不受会话影响（GDM/cage/tview 全阶段生效）✅ 已验证
+- Waydroid：tview 启动时拉起 `waydroid session start`（WAYLAND_DISPLAY=wayland-1，cage 的 socket）
+
+### 10.2 最大技术风险点（必须先真机验证）
+
+**TVIEW ↔ Waydroid 窗口切换**：cage 无窗口管理概念，切换用 `wlrctl window activate/minimize`：
+1. 启动安卓应用：`wlrctl window minimize`（tview）→ waydroid 窗口自动前置
+2. 长按返回回主页：tview 重新 activate
+- **验证不灵就换 labwc**（成本低：换会话文件里的合成器即可）
+- 音量键直达 Waydroid：wlroots 全设备转发，预期可行（§9.3 待办）
+
+### 10.3 安全收益
+
+- 无桌面环境 → 物理键盘/鼠标无法绕过 TVIEW（除 SSH 与控制台）
+- 退出盒子 = 回登录界面（要密码），不存在"免密桌面"
+- 远程排障：SSH（常开）+ GDM 登录界面选 GNOME（RustDesk）
+
+### 10.4 实施步骤（估算 2-3 小时 + 真机验证）
+
+1. 安装 cage（apt）+ 写 `/usr/share/wayland-sessions/tview.desktop`
+2. autologin 改指向 tview 会话（tview-autologin.sh 扩展）
+3. tview 适配：waydroid 同会话启动、wlrctl 切换、退出盒子改 terminate-session
+4. **真机验证窗口切换**（wlrctl；不灵换 labwc）
+5. 安装器补 cage/会话配置；README 安全模型更新

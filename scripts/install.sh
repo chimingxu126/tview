@@ -236,6 +236,22 @@ cd "$(dirname "$0")"
 exec ./tview --prod
 SH
       chmod +x /opt/tview/start.sh
+      # 图标与应用菜单入口（GNOME 应用列表可见，随时可启动）
+      cp -v assets/ui/tview.png /opt/tview/assets/ui/ 2>/dev/null || true
+      APPS_DIR="$USER_HOME/.local/share/applications"
+      mkdir -p "$APPS_DIR"
+      cat > "$APPS_DIR/tview.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=启视·TVIEW
+Name[en]=QiShi TVIEW
+Comment=TV box launcher
+Exec=/opt/tview/tview --prod
+Icon=/opt/tview/assets/ui/tview.png
+Terminal=false
+Categories=Utility;
+EOF
+      chown -R "$USER_NAME:$USER_NAME" "$APPS_DIR" 2>/dev/null || true
       # 开机自启（autostart）
       mkdir -p "$USER_HOME/.config/autostart"
       cat > "$USER_HOME/.config/autostart/tview.desktop" <<EOF
@@ -244,12 +260,14 @@ Type=Application
 Name=启视·TVIEW
 Comment=TV box launcher
 Exec=/opt/tview/tview --prod
+Icon=/opt/tview/assets/ui/tview.png
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
       chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
+      update-desktop-database "$APPS_DIR" 2>/dev/null || true
       if [ -x /opt/tview/tview ]; then
-        echo "✅ tview 部署完成: /opt/tview/tview（开机自启已配置）"
+        echo "✅ tview 部署完成: /opt/tview/tview（自启 + 应用菜单入口）"
       else
         echo "❌ /opt/tview/tview 不可执行，部署失败"
       fi
