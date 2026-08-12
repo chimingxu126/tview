@@ -5,6 +5,7 @@
     python3 main.py --mock           # 模拟模式（开发调试，不执行真实命令）
     python3 main.py --prod           # 生产模式（真实调用 waydroid/systemctl 等）
     python3 main.py --mock --render-out /tmp/tview.png   # 无显示环境渲染截图（开发验证）
+    python3 main.py --watch          # 后台显示器监听（显示器唤醒 TVIEW，桌面模式自启）
 
 阶段1范围：启动器网格 + 遥控器 grab/ungrab + Waydroid 应用管理 + 简版设置/市场。
 """
@@ -19,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--prod", action="store_true", help="生产模式：真实调用系统命令")
     p.add_argument("--mock", action="store_true", help="模拟模式：命令仅打印日志")
     p.add_argument("--render-out", default="", help="渲染一帧截图到该路径后退出（开发验证用）")
+    p.add_argument("--watch", action="store_true", help="后台显示器监听模式（显示器唤醒 TVIEW）")
     return p.parse_args()
 
 
@@ -34,6 +36,12 @@ def main() -> int:
     logger.info("TVIEW 启动 mode=%s render_out=%s", "mock" if mock else "prod", args.render_out or "-")
 
     config = Config(mock=mock)
+
+    # 后台显示器监听模式：不启动 UI，检测显示器开启 → 拉起 TVIEW
+    if args.watch:
+        from tview.display_watch import run_watch
+        return run_watch(config)
+
     set_language(config.get("language", "zh"))
 
     from PyQt5.QtWidgets import QApplication

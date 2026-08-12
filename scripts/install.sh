@@ -306,6 +306,17 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
         chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
+        # 显示器唤醒监听（桌面模式后台常驻；labwc 盒子会话不读 autostart，天然不冲突）
+        cat > "$USER_HOME/.config/autostart/tview-watch.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=TVIEW Display Wake
+Comment=Wake TVIEW when display turns on
+Exec=/opt/tview/tview --watch
+Terminal=false
+X-GNOME-Autostart-enabled=true
+EOF
+        chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
         echo "✅ 开机自启已配置"
       else
         echo "ℹ️ 已按选择跳过开机自启（可稍后: 设置 → 开机自动启动）"

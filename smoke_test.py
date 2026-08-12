@@ -139,6 +139,11 @@ from tview.ui.main_window import SettingsDialog, KeyMapDialog, MarketDialog
 dlg = SettingsDialog(config, win)
 check("设置弹窗可打开", dlg.windowTitle() == "设置")
 check("开机自启开关存在", hasattr(dlg, "autostart_chk"))
+check("显示器唤醒开关存在且默认开", getattr(dlg, "dw_chk", None) is not None and dlg.dw_chk.isChecked())
+dlg.dw_specific.setChecked(True)
+check("显示器唤醒模式切换保存", (config.get("display_wake") or {}).get("mode") == "specific")
+dlg.dw_any.setChecked(True)
+check("显示器唤醒列表刷新不崩", dlg.dw_list.count() >= 0)
 dlg.close()
 
 # 13. 遥控器映射对话框

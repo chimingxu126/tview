@@ -21,11 +21,14 @@ from PyQt5.QtCore import QEvent, QObject, QSize, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QIcon, QKeyEvent, QPixmap
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
                              QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout,
-                             QLabel, QLineEdit, QListWidget, QMessageBox, QProgressDialog,
-                             QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget)
+                             QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressDialog,
+                             QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout,
+                             QWidget)
 
 from ..apps import App, AppManager
 from ..config import LOG_DIR
+from ..displays import label as disp_label
+from ..displays import list_connectors
 from ..i18n import format_date, tr
 from ..theme import (build_qss, ensure_contrast, generate_wallpaper,
                      resolve_theme, THEMES)
@@ -1201,6 +1204,34 @@ class SettingsDialog(QDialog):
         hint_mode.setWordWrap(True)
         root.addWidget(hint_mode)
 
+        # 显示器唤醒 TVIEW（BETA 0.3：桌面模式下检测显示器开启 → 自动进入 TVIEW）
+        self.dw_chk = QCheckBox(tr("dw_enabled"))
+        _dw = config.get("display_wake") or {}
+        self.dw_chk.setChecked(bool(_dw.get("enabled", True)))
+        self.dw_chk.toggled.connect(self._toggle_dw)
+        root.addWidget(self.dw_chk)
+
+        self.dw_any = QRadioButton(tr("dw_mode_any"))
+        self.dw_specific = QRadioButton(tr("dw_mode_specific"))
+        self.dw_any.setChecked(_dw.get("mode", "any") == "any")
+        self.dw_specific.setChecked(_dw.get("mode", "any") != "any")
+        self.dw_any.toggled.connect(lambda v: self._set_dw_mode("any" if v else "specific"))
+        root.addWidget(self.dw_any)
+        root.addWidget(self.dw_specific)
+
+        self.dw_list = QListWidget()
+        self.dw_list.setMinimumHeight(110)
+        self.dw_list.itemChanged.connect(self._save_dw_targets)
+        root.addWidget(self.dw_list)
+        btn_dw_refresh = QPushButton(tr("dw_refresh"))
+        btn_dw_refresh.clicked.connect(self._refresh_dw_list)
+        root.addWidget(btn_dw_refresh)
+        hint_dw = QLabel(tr("dw_hint"))
+        hint_dw.setWordWrap(True)
+        root.addWidget(hint_dw)
+        self._refresh_dw_list()
+        self._sync_dw_enabled()
+
         # 退出盒子后是否免密进桌面（默认关=退出时锁屏，更安全）
         self.exit_nopasswd_chk = QCheckBox(tr("exit_nopasswd"))
         self.exit_nopasswd_chk.setChecked(bool(config.get("exit_nopasswd", False)))
@@ -1341,6 +1372,71 @@ class SettingsDialog(QDialog):
             QMessageBox.information(self, tr("dlg_settings"), tr("mode_restart"))
         else:
             QMessageBox.warning(self, tr("dlg_settings"), err or tr("autologin_fail"))
+
+    # ---------------- 显示器唤醒 TVIEW（BETA 0.3） ----------------
+    def _dw_config(self) -> dict:
+        dw = dict(self.config.get("display_wake") or {})
+        dw.setdefault("enabled", True)
+        dw.setdefault("mode", "any")
+        dw.setdefault("targets", [])
+        return dw
+
+    def _save_dw(self, dw: dict) -> None:
+        self.config.set("display_wake", dw)
+        self.config.save()
+        self.changed = True
+
+    def _toggle_dw(self, v: bool) -> None:
+        dw = self._dw_config()
+        dw["enabled"] = v
+        self._save_dw(dw)
+        self._sync_dw_enabled()
+
+    def _set_dw_mode(self, mode: str) -> None:
+        dw = self._dw_config()
+        dw["mode"] = mode
+        self._save_dw(dw)
+        self._sync_dw_enabled()
+
+    def _sync_dw_enabled(self) -> None:
+        """开关关闭时禁用子选项。"""
+        en = self.dw_chk.isChecked()
+        self.dw_any.setEnabled(en)
+        self.dw_specific.setEnabled(en)
+        self.dw_list.setEnabled(en and self.dw_specific.isChecked())
+
+    def _refresh_dw_list(self) -> None:
+        """扫描当前开启的显示器（EDID 可读），勾选状态对应当前配置。"""
+        self.dw_list.blockSignals(True)
+        self.dw_list.clear()
+        targets = set((self._dw_config()).get("targets") or [])
+        ons = [c for c in list_connectors() if c["on"]]
+        if not ons:
+            item = QListWidgetItem(tr("dw_none_found"))
+            item.setFlags(Qt.NoItemFlags)
+            self.dw_list.addItem(item)
+        else:
+            for c in ons:
+                item = QListWidgetItem(disp_label(c))
+                item.setData(Qt.UserRole, c["connector"])
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked if c["connector"] in targets else Qt.Unchecked)
+                self.dw_list.addItem(item)
+        self.dw_list.blockSignals(False)
+
+    def _save_dw_targets(self, item) -> None:
+        """勾选变化 → 保存 targets。"""
+        if not item.data(Qt.UserRole):
+            return
+        dw = self._dw_config()
+        checked = []
+        for i in range(self.dw_list.count()):
+            it = self.dw_list.item(i)
+            conn = it.data(Qt.UserRole)
+            if conn and it.checkState() == Qt.Checked:
+                checked.append(conn)
+        dw["targets"] = checked
+        self._save_dw(dw)
 
     def _open_keymap(self) -> None:
         """打开遥控器按键映射对话框。"""

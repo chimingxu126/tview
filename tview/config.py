@@ -35,6 +35,11 @@ DEFAULTS = {
     "autologin": False,           # 开机免密直接进 TVIEW（GDM autologin，设置里可开关）
     "exit_nopasswd": False,       # 退出盒子后免密进入桌面（默认关=退出时锁屏，更安全）
     "vnc_password": "",           # 盒子模式 VNC 远程密码（wayvnc，空=无密码）
+    "display_wake": {             # 显示器唤醒 TVIEW（BETA 0.3）
+        "enabled": True,          # 开关（默认开）
+        "mode": "any",            # any=任意显示器 / specific=特定显示器
+        "targets": [],            # 特定显示器列表：[connector 名, ...]
+    },
     "theme": "minimal",          # 主题：minimal/aurora/tech/space/bright/custom（theme.py）
     "custom_theme": {},           # 自定义主题配色覆盖（theme=自定义 时生效）
 }

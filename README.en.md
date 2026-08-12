@@ -19,6 +19,7 @@ TVIEW is a TV-box launcher for Ubuntu: plug a TV and a remote control into an or
 - **🌐 Chinese & English UI**, switchable in Settings
 - **⚡ Integration**: auto-start (optional at install), watchdog (crash recovery), log export, reboot/power menu
 - **🔒 Security**: see "Security model" below
+- **🖥️ Wake TVIEW on display on**: in desktop mode, turning on a display auto-opens TVIEW (switchable in Settings / specific-display option)
 
 ![Tech blue theme main screen](docs/screenshots/main-tech.png)
 
@@ -118,6 +119,16 @@ In box mode TVIEW starts a VNC server automatically (`box-IP:5900`). Connect wit
 
 - Password: none by default (trusted LAN); to set one, edit `vnc_password` in `~/.config/tview/config.yaml` and restart TVIEW.
 - Note: VNC covers the TVIEW interface only; use SSH for system-level tasks.
+
+## Wake TVIEW on display on
+
+In desktop mode (after remote work / when you come back), turning on a display auto-enters TVIEW — ideal for "use the PC remotely during the day, come home and turn on the TV for the box".
+
+- Settings → **Wake TVIEW on display on** (default ON); turning it off fully disables the feature
+- Wake modes: **any display** turns on → wake, or **specific displays only** (checklist, e.g. only the TV)
+- Detection reads the Linux DRM layer — **all interfaces (HDMI/DP/VGA/DVI/USB-C) work uniformly**; the list shows connector + vendor/model
+- Security: never bypasses authentication (TVIEW started while locked becomes visible after unlock); box mode keeps TVIEW resident and needs no such feature
+- Note: when picking "specific displays", the display must be powered on to appear in the list
 
 ## Run from source / build
 
