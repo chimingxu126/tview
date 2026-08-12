@@ -4,6 +4,14 @@
 
 TVIEW 是一个运行在 Ubuntu 上的电视盒子启动器：接上电视和遥控器，普通 x86 电脑（或迷你主机）就变成一台能装安卓 TV 应用的盒子——当贝市场、酷安、B 站 TV 版……想装什么装什么。
 
+[![Build](https://github.com/chimingxu126/tview/actions/workflows/build.yml/badge.svg)](https://github.com/chimingxu126/tview/actions)
+
+**核心亮点**：
+- 📱 **安卓 TV 生态**：当贝市场/酷安等 ARM-only 应用直接装直接跑（libhoudini 转译层）
+- 🎮 **遥控器即插即用**：返回/主页/音量在安卓应用内原生生效（keyd 系统级键位标准化）
+- 🔒 **安全盒子模式**：labwc 专用会话，遥控器唯一入口，物理键盘/鼠标无法绕过
+- 🖥️ **显示器唤醒**：桌面模式下打开显示器（电视）自动进入 TVIEW
+
 > [English](README.en.md) · 中文
 
 ![极光主题主界面](docs/screenshots/main-aurora.png)

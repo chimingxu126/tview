@@ -4,6 +4,14 @@
 
 TVIEW is a TV-box launcher for Ubuntu: plug a TV and a remote control into an ordinary x86 PC (or mini PC) and it becomes a box that runs Android TV apps — Dangbei Market, CoolApk, Bilibili TV… whatever you want.
 
+[![Build](https://github.com/chimingxu126/tview/actions/workflows/build.yml/badge.svg)](https://github.com/chimingxu126/tview/actions)
+
+**Highlights**:
+- 📱 **Android TV ecosystem**: ARM-only apps (Dangbei/CoolApk…) install and run directly (libhoudini translation)
+- 🎮 **Remote works out of the box**: Back/Home/Volume work natively inside Android apps (keyd system-level normalization)
+- 🔒 **Secure TV box mode**: dedicated labwc session — the remote is the only entry point; physical keyboard/mouse cannot bypass it
+- 🖥️ **Wake on display**: in desktop mode, turning on a display (TV) auto-opens TVIEW
+
 > [中文](README.md) · English
 
 ![Aurora theme main screen](docs/screenshots/main-aurora.png)
