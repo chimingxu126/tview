@@ -862,7 +862,7 @@ class MainWindow(QWidget):
     def _volume(self, action: str) -> None:
         """音量键：调整 PipeWire 默认输出（wpctl，兼容 HDMI/模拟输出）。"""
         if self.config.mock:
-            logger.info(tr("volume_mock"), action)
+            logger.info(tr("volume_mock").format(action))
             return
         try:
             delta = "0.05+" if action == "volume_up" else "0.05-"
