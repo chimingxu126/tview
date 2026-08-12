@@ -86,13 +86,24 @@ if ! command -v waydroid >/dev/null 2>&1; then
   need curl
   curl -s --proto '=https' --tlsv1.2 -Sf https://repo.waydro.id/waydroid.gpg \
     -o /usr/share/keyrings/waydroid.gpg || { echo "❌ 下载 waydroid 源失败（需联网）"; exit 1; }
-  echo "deb [signed-by=/usr/share/keyrings/waydroid.gpg] https://repo.waydro.id/ noble main" \
+  # 发行版代号动态检测（noble=24.04 / resolute=26.04 / 未来版本自动适配）
+  CODENAME=$(lsb_release -cs 2>/dev/null || grep -oP 'UBUNTU_CODENAME=\K.*' /etc/os-release)
+  [ -n "$CODENAME" ] || CODENAME="noble"
+  echo "deb [signed-by=/usr/share/keyrings/waydroid.gpg] https://repo.waydro.id/ ${CODENAME} main" \
     > /etc/apt/sources.list.d/waydroid.list
-  apt-get update -qq && apt-get install -y waydroid python3-pyqt5 python3-evdev python3-yaml wlrctl
+  echo ">>> 使用 ${CODENAME} 源安装 waydroid"
+  apt-get update -qq && apt-get install -y waydroid python3-pyqt5 python3-evdev python3-yaml wlrctl || {
+    echo "❌ waydroid 安装失败（看上面依赖错误；若为 python3-gbinder 冲突，确认源代号是否匹配系统版本）"
+    exit 1; }
 else
   apt-get install -y python3-pyqt5 python3-evdev python3-yaml wlrctl 2>/dev/null || true
 fi
-echo "✅ waydroid: $(waydroid --version 2>/dev/null | head -1 || echo installed)"
+if command -v waydroid >/dev/null 2>&1; then
+  echo "✅ waydroid: $(waydroid --version 2>/dev/null | head -1 || echo installed)"
+else
+  echo "❌ waydroid 仍未就绪（PATH 中找不到），请检查安装输出"
+  exit 1
+fi
 
 # ---------- 3. 初始化镜像 ----------
 say "初始化 Waydroid 镜像（GApps）"
@@ -103,7 +114,14 @@ if [ "${LOCAL_IMAGES:-0}" = "1" ] && [ -f "$ASSETS/images/system.img" ]; then
 fi
 if [ ! -f /var/lib/waydroid/images/system.img ]; then
   echo ">>> 在线下载 GAPPS 镜像（约 2GB，耐心等待；有本地镜像可加 --local-images）"
-  waydroid init -s GAPPS
+  if ! waydroid init -s GAPPS; then
+    echo
+    echo "⚠️ waydroid init 失败（多为网络问题，GAPPS 镜像在国内不可达）。可选："
+    echo "  1. 挂代理后重跑本脚本（幂等）"
+    echo "  2. 加 --local-images 使用本地镜像包"
+    echo "  3. 稍后手动: sudo waydroid init -s GAPPS"
+    echo
+  fi
 else
   waydroid init -s GAPPS 2>/dev/null || echo ">>> 镜像已存在，跳过 init"
 fi
@@ -198,24 +216,27 @@ else
     echo "⚠️ 未找到 tview 二进制。请从 GitHub Releases 下载后放本目录，或: sudo bash scripts/install.sh --tview-bin /path/to/tview"
   else
     mkdir -p /opt/tview/assets
-    cp -v "$BIN" /opt/tview/tview && chmod +x /opt/tview/tview
-    # 资产：只拷贝无版权风险的（壁纸/UI/清单）；apks/ 与 houdini/ 不随仓库分发
-    cp -rv assets/wallpapers /opt/tview/assets/ 2>/dev/null || true
-    cp -rv assets/ui /opt/tview/assets/ 2>/dev/null || true
-    cp -v assets/manifest.json /opt/tview/assets/ 2>/dev/null || true
-    # 用户自备的 APK 资产（可选，跳过下载时存在）
-    if [ -d "assets/apks" ] && ls assets/apks/*.apk >/dev/null 2>&1; then
-      cp -rv assets/apks /opt/tview/assets/ 2>/dev/null || true
-    fi
-    cat > /opt/tview/start.sh <<'SH'
+    if ! cp -v "$BIN" /opt/tview/tview; then
+      echo "❌ 复制二进制失败: $BIN -> /opt/tview/tview"
+    else
+      chmod +x /opt/tview/tview
+      # 资产：只拷贝无版权风险的（壁纸/UI/清单）；apks/ 与 houdini/ 不随仓库分发
+      cp -rv assets/wallpapers /opt/tview/assets/ 2>/dev/null || true
+      cp -rv assets/ui /opt/tview/assets/ 2>/dev/null || true
+      cp -v assets/manifest.json /opt/tview/assets/ 2>/dev/null || true
+      # 用户自备的 APK 资产（可选，跳过下载时存在）
+      if [ -d "assets/apks" ] && ls assets/apks/*.apk >/dev/null 2>&1; then
+        cp -rv assets/apks /opt/tview/assets/ 2>/dev/null || true
+      fi
+      cat > /opt/tview/start.sh <<'SH'
 #!/bin/bash
 cd "$(dirname "$0")"
 exec ./tview --prod
 SH
-    chmod +x /opt/tview/start.sh
-    # 开机自启（autostart）
-    mkdir -p "$USER_HOME/.config/autostart"
-    cat > "$USER_HOME/.config/autostart/tview.desktop" <<EOF
+      chmod +x /opt/tview/start.sh
+      # 开机自启（autostart）
+      mkdir -p "$USER_HOME/.config/autostart"
+      cat > "$USER_HOME/.config/autostart/tview.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=启视·TVIEW
@@ -224,8 +245,13 @@ Exec=/opt/tview/tview --prod
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
-    chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
-    echo "✅ tview 部署完成: /opt/tview/tview（开机自启已配置）"
+      chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/autostart" 2>/dev/null || true
+      if [ -x /opt/tview/tview ]; then
+        echo "✅ tview 部署完成: /opt/tview/tview（开机自启已配置）"
+      else
+        echo "❌ /opt/tview/tview 不可执行，部署失败"
+      fi
+    fi
   fi
 fi
 
