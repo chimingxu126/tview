@@ -91,7 +91,7 @@ cat > /etc/sudoers.d/tview <<EOF
 # 启视·TVIEW 白名单：仅放行盒子模式需要的命令
 Cmnd_Alias TVIEW_CMDS = /sbin/reboot, /sbin/shutdown, /bin/systemctl, \
     /usr/bin/systemctl, /usr/bin/nmcli, /usr/bin/waydroid, /usr/bin/apt, \
-    /usr/bin/apt-get, /usr/bin/pactl, /usr/bin/wpctl
+    /usr/bin/apt-get, /usr/bin/pactl, /usr/bin/wpctl, /usr/local/sbin/tview-usbmount.sh
 %sudo ALL=(ALL) NOPASSWD: TVIEW_CMDS
 EOF
 chmod 440 /etc/sudoers.d/tview
@@ -384,6 +384,7 @@ fi
 say "开机免密（可选，默认开启）"
 install -m 755 scripts/tview-autologin.sh /usr/local/sbin/tview-autologin.sh 2>/dev/null || \
   install -m 755 /usr/local/sbin/tview-autologin.sh /usr/local/sbin/tview-autologin.sh 2>/dev/null || true
+install -m 755 scripts/tview-usbmount.sh /usr/local/sbin/tview-usbmount.sh 2>/dev/null || true
 if [ -x /usr/local/sbin/tview-autologin.sh ]; then
   cat > /etc/sudoers.d/tview-autologin <<EOF
 # tview 开机免密开关脚本白名单

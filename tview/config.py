@@ -40,6 +40,8 @@ DEFAULTS = {
         "mode": "any",            # any=任意显示器 / specific=特定显示器
         "targets": [],            # 特定显示器列表：[connector 名, ...]
     },
+    "usb_mount": False,           # U 盘自动挂载到安卓（bind /media 进 Waydroid 容器）
+    "app_exit_home": True,        # 应用退出后自动返回 TVIEW
     "theme": "minimal",          # 主题：minimal/aurora/tech/space/bright/custom（theme.py）
     "custom_theme": {},           # 自定义主题配色覆盖（theme=自定义 时生效）
 }

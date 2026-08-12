@@ -1,5 +1,33 @@
 # Changelog (English)
 
+## [0.4.0-beta.1] - 2026-08-12
+
+BETA 0.4: **UI overhaul (Android TV paradigm) + interaction fixes**.
+
+### UI rework (remote-friendly; fixes "settings stuck / cannot scroll / hard to control")
+- **Main-screen navigation moved to the top**: Settings / App Install / Exit box / Power now sit in a top nav row (bottom dock removed); the Back key moves focus to the nav row (Android TV launcher feel); Up/Down move between nav row and app grid
+- **Settings rewritten as a fullscreen view** (long-dialog removed): left category rail + right option list (Display/Input/Apps/System/Security/About); all remote-friendly rows (option rows change value with Left/Right, switch rows toggle with OK, action rows open with OK); Up/Down move, Left/Right switch/change, OK confirm, Back steps out level by level; no more dropdowns
+- **Risks documented in the UI**: security-related options show risk notes right below them
+- "App Store" renamed **"App Install"** (Dangbei/F-Droid/USB unified; USB install entry merged in)
+
+### New features
+- **Auto-mount USB into Android** (Settings switch, default off): binds /media into the Waydroid container so Android file managers can access USB drives; sudoers whitelist + tview-usbmount.sh (idempotent)
+- **Return to TVIEW when apps exit** (Settings switch, default on): Linux app process exit returns to the main screen; Android apps returning to the Android home (container foreground polling) auto-return to TVIEW
+- **Display-wake linkage**: enabling wake also disables the GNOME idle screen lock (otherwise the lock covers TVIEW — fixes "turned on the display and saw the lock screen")
+
+### Fixes
+- Settings dialog could not scroll (plain QDialog, no scroll area) → fullscreen page has no such issue
+- Language/theme dropdowns trapped the remote (QComboBox popup vs. direction keys) → replaced with option rows (Left/Right to change)
+
+### Verified
+- Dev machine: smoke tests 35/35 (nav model/settings view/new features)
+- Clean VM (Ubuntu 26.04): smoke tests 29/29, settings view starts fine
+
+### Known issues
+- Android "return to TVIEW" relies on container foreground polling (5s granularity, 20-min cap)
+- USB mount requires a Waydroid restart to take effect (switch prompts)
+- Legacy SettingsDialog kept for compatibility but no longer used (fullscreen view is used)
+
 ## [0.3.0-beta.1] - 2026-08-12
 
 BETA 0.3: **Wake TVIEW on display on** — in desktop mode, TVIEW opens automatically when a display turns on.

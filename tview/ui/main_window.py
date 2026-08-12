@@ -107,6 +107,7 @@ class MainWindow(QWidget):
         self._dock_hide()
         self._sync_autostart()  # 启动时按配置补写/清理自启文件（默认开但文件可能从未写过）
         self._start_vnc()  # kiosk 模式下启动 VNC 远程（wayvnc）
+        self._apply_usb_mount()  # 按配置同步 U 盘挂载到安卓
         if remote.keyd_mode:
             # keyd 模式下无 evdev 设备上报，直接标记在线。
             # 注意：必须在 _build_ui() 之后 emit，否则 on_remote_state 同步执行时
@@ -164,6 +165,24 @@ class MainWindow(QWidget):
         sb.addWidget(self.time_label)
         root.addWidget(self.status_bar)
 
+        # 顶部导航行（安卓 TV 范式：功能入口在顶部，遥控器上键/返回键可达）
+        self.nav_bar = QFrame()
+        self.nav_bar.setObjectName("navBar")
+        nav = QHBoxLayout(self.nav_bar)
+        nav.setContentsMargins(4, 2, 4, 2)
+        nav.setSpacing(12)
+        self.btn_settings = self._bottom_button(tr("settings"), self.open_settings)
+        self.btn_market = self._bottom_button(tr("market"), self.open_market)
+        self.btn_exit = self._bottom_button(tr("power_exit"), self.exit_box)
+        self.btn_power = self._bottom_button(tr("power_menu_title"), self._power_menu)
+        nav.addStretch(1)
+        nav.addWidget(self.btn_settings)
+        nav.addWidget(self.btn_market)
+        nav.addWidget(self.btn_exit)
+        nav.addWidget(self.btn_power)
+        nav.addStretch(1)
+        root.addWidget(self.nav_bar)
+
         # 应用网格 + 加载提示（可滚动，防止应用多时溢出挤掉底部按钮）
         self.grid_area = QWidget()
         ga = QVBoxLayout(self.grid_area)
@@ -192,27 +211,6 @@ class MainWindow(QWidget):
         self.grid_scroll.setWidget(self.grid_wrap)
         ga.addWidget(self.grid_scroll, 1)
         root.addWidget(self.grid_area, 1)
-
-        # 底部 Dock：半透明底条包裹 4 个按钮
-        self.dock_bar = QFrame()
-        self.dock_bar.setObjectName("dockBar")
-        dock = QHBoxLayout(self.dock_bar)
-        dock.setContentsMargins(20, 12, 20, 12)
-        dock.setSpacing(18)
-        self.btn_settings = self._bottom_button(tr("settings"), self.open_settings)
-        self.btn_market = self._bottom_button(tr("market"), self.open_market)
-        self.btn_exit = self._bottom_button(tr("power_exit"), self.exit_box)
-        self.btn_power = self._bottom_button(tr("power_menu_title"), self._power_menu)
-        dock.addWidget(self.btn_settings)
-        dock.addWidget(self.btn_market)
-        dock.addWidget(self.btn_exit)
-        dock.addWidget(self.btn_power)
-
-        bottom = QHBoxLayout()
-        bottom.addStretch(1)
-        bottom.addWidget(self.dock_bar)
-        bottom.addStretch(1)
-        root.addLayout(bottom)
 
         self.showFullScreen()  # 最后再全屏：避免 resize 事件打断布局初始化
 
@@ -324,64 +322,71 @@ class MainWindow(QWidget):
             logger.error("重建网格失败: %s", e)
 
     def _focusables(self) -> list:
-        """全部可聚焦控件：网格卡片（行优先） + 底部按钮。"""
-        items = []
+        """全部可聚焦控件：顶部导航按钮（行0） + 网格卡片（后续行）。"""
+        items = [self.btn_settings, self.btn_market, self.btn_exit, self.btn_power]
         for i in range(self.grid.count()):
             w = self.grid.itemAt(i).widget()
             if w is not None:
                 items.append(w)
-        items.append(self.btn_settings)
-        items.append(self.btn_market)
-        items.append(self.btn_exit)
-        items.append(self.btn_power)
         return items
 
     def _nav_grid(self, key: int) -> None:
-        """方向键导航：网格 + 底部按钮行模型。
-        - 向下：最后一行卡片 → 设置按钮 → 应用下载按钮 → 循环
-        - 向上：按钮行 → 最后一行卡片；顶部停在第一行
-        - 左右：横向移动，边界循环
+        """方向键导航：顶部导航行(4 按钮) + 应用网格统一模型（安卓 TV 范式）。
+        - 上：网格第一行 → 导航行；导航行 → 网格最后一行
+        - 下：导航行 → 网格第一行；网格最后一行 → 导航行
+        - 左右：行内移动（跨行对齐列）
         """
         cards = []
         for i in range(self.grid.count()):
             w = self.grid.itemAt(i).widget()
             if w is not None:
                 cards.append(w)
-        buttons = [self.btn_settings, self.btn_market, self.btn_exit, self.btn_power]
-        items = cards + buttons
-        if not items:
+        n_btn = 4
+        n = len(cards)
+        if n == 0:
             return
         cols = max(2, min(6, int(self.config.get("columns", 3))))
-        n = len(cards)
         idx = self.focused_index
         if key == Qt.Key_Down:
-            if idx < n:
-                idx += cols
-                if idx >= n:
-                    idx = n  # 最后一行 → 设置按钮
+            if idx < n_btn:
+                idx = n_btn + min(idx, cols - 1)  # 导航行 → 网格第一行（列对齐）
             else:
-                # 按钮行内循环：设置→应用下载→设置
-                idx = n + ((idx - n + 1) % len(buttons))
+                i = idx - n_btn
+                if i + cols < n:
+                    idx += cols
+                else:
+                    idx = min(i % cols, n_btn - 1)  # 网格最后一行 → 导航行
         elif key == Qt.Key_Up:
-            if idx >= n:
-                idx = n - 1  # 按钮行 → 最后一张卡片
+            if idx < n_btn:
+                last_first = n_btn + ((n - 1) // cols) * cols
+                idx = min(last_first + min(idx, cols - 1), n_btn + n - 1)
             else:
-                idx -= cols
-                if idx < 0:
-                    idx = 0  # 顶部停在第一行
+                i = idx - n_btn
+                if i < cols:
+                    idx = min(i, n_btn - 1)  # 网格第一行 → 导航行
+                else:
+                    idx -= cols
         elif key == Qt.Key_Right:
-            idx += 1
-            if idx >= len(items):
-                idx = 0
+            if idx < n_btn:
+                idx = (idx + 1) % n_btn
+            else:
+                i = idx - n_btn
+                idx = idx + 1 if i % cols < cols - 1 and i + 1 < n else n_btn + (i // cols) * cols
         elif key == Qt.Key_Left:
-            idx -= 1
-            if idx < 0:
-                idx = len(items) - 1
+            if idx < n_btn:
+                idx = (idx - 1) % n_btn
+            else:
+                i = idx - n_btn
+                if i % cols > 0:
+                    idx -= 1
+                else:
+                    idx = n_btn + min((i // cols + 1) * cols - 1, n - 1)
         self.focused_index = idx
-        items[idx].setFocus()
+        all_items = [self.btn_settings, self.btn_market, self.btn_exit, self.btn_power] + cards
+        all_items[idx].setFocus()
         # 滚动到焦点卡片可见（应用多时网格可滚动）
-        if hasattr(self, "grid_scroll") and idx < n:
-            self.grid_scroll.ensureWidgetVisible(items[idx], 0, 0)
+        if hasattr(self, "grid_scroll") and idx >= n_btn:
+            self.grid_scroll.ensureWidgetVisible(all_items[idx], 0, 0)
 
     # ---------------- 全局输入（事件过滤器） ----------------
     def eventFilter(self, obj, ev):
@@ -439,7 +444,11 @@ class MainWindow(QWidget):
                     if modal is not None:
                         modal.reject()
                     else:
-                        self.show_home()
+                        # 安卓 TV 范式：返回键把焦点切到顶部导航行（设置按钮）
+                        if self.focused_index >= 4 and self.grid.count():
+                            self.focused_index = 0
+                            self.btn_settings.setFocus()
+                        # 已在导航行则无操作（等同安卓 launcher 首页）
                 else:
                     # 退格键 = 本遥控器的设置键：有弹窗则关闭，无弹窗则打开设置
                     modal = QApplication.activeModalWidget()
@@ -571,15 +580,69 @@ class MainWindow(QWidget):
             if not ok:
                 self._toast(tr("launch_failed").format(app.name))
                 return
+            if self.config.get("app_exit_home", True):
+                threading.Thread(target=self._watch_android_exit, args=(app.launch,),
+                                 daemon=True).start()
         else:
             try:
-                subprocess.Popen(app.launch, shell=True)
+                proc = subprocess.Popen(app.launch, shell=True)
+                if self.config.get("app_exit_home", True):
+                    threading.Thread(target=self._watch_linux_exit, args=(proc,),
+                                     daemon=True).start()
             except Exception as e:
                 logger.error("启动 Linux 应用失败: %s", e)
                 self._toast(tr("launch_failed").format(app.name))
                 return
         logger.info("启动应用: %s (%s)", app.name, app.kind)
         self.remote.set_state("APP")  # 释放 grab，按键流向应用
+
+    def _watch_linux_exit(self, proc) -> None:
+        """Linux 应用退出 → 回 TVIEW 主界面（设置 app_exit_home 可关）。"""
+        try:
+            proc.wait()
+        except Exception:
+            return
+        if self.config.get("app_exit_home", True):
+            logger.info("Linux 应用退出，回 TVIEW")
+            self._back_to_tview()
+
+    def _watch_android_exit(self, pkg: str) -> None:
+        """安卓应用退出（前台回到安卓桌面）→ 回 TVIEW。轮询容器内前台活动，尽力而为。"""
+        if self.config.mock:
+            return
+        import time as _t
+        for _ in range(240):  # 最多监听 20 分钟
+            _t.sleep(5)
+            if not self.waydroid.session_running():
+                return
+            try:
+                r = subprocess.run(
+                    ["sudo", "-n", "lxc-attach", "-P", "/var/lib/waydroid/lxc",
+                     "-n", "waydroid", "--", "dumpsys", "activity", "activities"],
+                    capture_output=True, text=True, timeout=8)
+                out = r.stdout or ""
+                resumed = ""
+                for line in out.splitlines():
+                    if "mResumedActivity" in line:
+                        resumed = line.strip()
+                        break
+                if resumed and "launcher" in resumed.lower() and pkg not in resumed:
+                    logger.info("安卓应用退出（回到安卓桌面），回 TVIEW")
+                    self._back_to_tview()
+                    return
+            except Exception as e:
+                logger.warning("检测安卓前台失败: %s", e)
+
+    def _back_to_tview(self) -> None:
+        """回 TVIEW 主界面（含 kiosk 焦点切换）。"""
+        self.remote.set_state("HOME")
+        self.show_home()
+        if self._is_kiosk():
+            try:
+                subprocess.run(["wlrctl", "window", "focus", "tview"], timeout=5,
+                               capture_output=True)
+            except Exception:
+                pass
 
     def show_home(self) -> None:
         """回到主界面。"""
@@ -741,11 +804,12 @@ class MainWindow(QWidget):
 
     # ---------------- 设置 / 市场 ----------------
     def open_settings(self) -> None:
-        dlg = SettingsDialog(self.config, self)
-        dlg.exec_()
-        if dlg.changed:
-            self.config.save()
-            self.render_grid()
+        # BETA 0.4：全屏设置视图（安卓 TV 风格）；旧弹窗 SettingsDialog 保留兼容
+        from .settings_view import SettingsView
+        view = SettingsView(self.config, self)
+        view.exec_()
+        self.config.save()
+        self.render_grid()
 
     def open_market(self) -> None:
         dlg = MarketDialog(self.waydroid, self.config, self)
@@ -968,6 +1032,19 @@ class MainWindow(QWidget):
             logger.info("VNC 已启动 (wayvnc%s)", " 带密码" if pw else " 无密码")
         except Exception as e:
             logger.error("wayvnc 启动失败: %s", e)
+
+    def _apply_usb_mount(self) -> None:
+        """按配置同步 U 盘挂载：调 tview-usbmount.sh on/off（NOPASSWD 白名单）。"""
+        if self.config.mock:
+            logger.info("U盘挂载(%s) - mock", self.config.get("usb_mount", False))
+            return
+        try:
+            want = "on" if self.config.get("usb_mount", False) else "off"
+            r = subprocess.run(["sudo", "-n", "/usr/local/sbin/tview-usbmount.sh", want],
+                               capture_output=True, text=True, timeout=20)
+            logger.info("U盘挂载已同步: %s (%s)", want, (r.stdout or r.stderr or "").strip())
+        except Exception as e:
+            logger.warning("U盘挂载同步失败: %s", e)
 
     def _is_kiosk(self) -> bool:
         """是否运行在 kiosk 模式（TVIEW 专用 labwc 会话，L2）。
@@ -2047,9 +2124,17 @@ class MarketDialog(QDialog):
             b = QPushButton(tr("market_install").format(name))
             b.clicked.connect(lambda _, n=name, p=pkg, l=local, u=url: self._install(n, p, l, u))
             root.addWidget(b)
+        # 从 U 盘安装（软件安装中心三合一入口）
+        btn_usb = QPushButton(tr("usb_install_btn"))
+        btn_usb.clicked.connect(self._open_usb)
+        root.addWidget(btn_usb)
         close = QPushButton(tr("close"))
         close.clicked.connect(self.accept)
         root.addWidget(close)
+
+    def _open_usb(self) -> None:
+        from .main_window import UsbInstallDialog
+        UsbInstallDialog(self.waydroid, self.config, self).exec_()
 
     def _install(self, name: str, pkg: str, local_rel: str, urls: list[str]) -> None:
         """本地资产优先，其次 URL 列表（后台探测+下载，全程不阻塞 UI）。"""

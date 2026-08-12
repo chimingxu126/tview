@@ -59,9 +59,13 @@ check("网格有5个卡片", win.grid.count() == 5)
 press("right")
 check(f"右移焦点 index=1", win.focused_index == 1)
 press("down")
-check(f"下移焦点 index=4", win.focused_index == 4)
+check(f"导航行下键 → 网格 index=5", win.focused_index == 5)
 press("left")
-check(f"左移焦点 index=3", win.focused_index == 3)
+check(f"网格左移 index=4", win.focused_index == 4)
+press("up")
+check(f"网格上键 → 导航行 index=0", win.focused_index == 0)
+press("down")
+check(f"导航行下键回网格 index=4", win.focused_index == 4)
 
 # 3. 回车激活 → 启动应用进入 APP 态（平台焦点不可用时走索引回退）
 press("enter")
@@ -71,9 +75,9 @@ check("enter 启动应用且进入 APP 态", remote._state == "APP")
 win.on_longpress_back()
 check("长按返回回 HOME 态", remote._state == "HOME")
 
-# 5. back 键 → 回主页并聚焦首卡
+# 5. back 键 → 焦点切到顶部导航行（设置）
 press("back")
-check(f"back 回主页聚焦首卡 focused_index=0", win.focused_index == 0)
+check(f"back 切到导航行 focused_index=0", win.focused_index == 0)
 
 # 6. home 键
 press("home")
@@ -94,15 +98,16 @@ config.set("columns", 4); win.render_grid()
 check("4列网格重排正常", win.grid.count() == 5)
 config.set("columns", 3); win.render_grid()
 
-# 9.5 底部按钮可达性：下→右→下 到设置，再下到应用下载，上回最后卡片
-win.on_remote_key("down")    # 0→3
-win.on_remote_key("right")   # 3→4 最后一张卡片
-win.on_remote_key("down")    # 4→5 设置按钮
-check(f"向下到设置按钮 focused_index=5", win.focused_index == 5)
-win.on_remote_key("down")    # 5→6 应用下载
-check(f"再向下到应用下载 focused_index=6", win.focused_index == 6)
-win.on_remote_key("up")      # 6→4 最后卡片
-check(f"向上回最后卡片 focused_index=4", win.focused_index == 4)
+# 9.5 顶部导航可达性：网格第一行 下键到底部 再下 → 导航行；导航行内左右循环
+win.on_remote_key("down")    # 0→4（导航行 → 网格第一行）
+win.on_remote_key("down")    # 4→7（网格第2行）
+win.on_remote_key("down")    # 7→0（网格底部 → 导航行）
+check(f"网格底部下键 → 导航行 index=0", win.focused_index == 0)
+win.on_remote_key("right")   # 0→1（软件安装）
+win.on_remote_key("right")   # 1→2（退出盒子）
+check(f"导航行右移 index=2", win.focused_index == 2)
+win.on_remote_key("up")      # 2→最后卡片（网格底部 col2）
+check(f"导航行上键 → 网格底部 index=8", win.focused_index == 8)
 
 # 9.6 Waydroid 状态标签
 win._update_wd_status()

@@ -23,7 +23,9 @@ TVIEW is a TV-box launcher for Ubuntu: plug a TV and a remote control into an or
 - **🎮 Remote control out of the box**: 2.4G remotes work instantly — Back/Home/Menu/Volume work natively inside Android apps; directional pad/OK navigate the UI; keys are remappable
 - **🐧 Native Linux apps**: add any Linux app (Kodi, Firefox…) from Settings; it joins the same grid and remote navigation as Android apps
 - **🎨 Multiple themes**: 5 built-in themes (Aurora/Tech/Space/Bright/Minimal) + custom colors & wallpaper, applied instantly (WCAG contrast auto-guaranteed)
-- **📦 Built-in app stores**: F-Droid one-click install; Dangbei Market guided download
+- **📦 App Install center**: Dangbei Market / F-Droid / USB install in one place
+- **💾 Auto-mount USB into Android**: Settings switch; USB drives accessible inside Android
+- **↩️ Return to TVIEW when apps exit**: auto back to the main screen (switchable)
 - **🌐 Chinese & English UI**, switchable in Settings
 - **⚡ Integration**: auto-start (optional at install), watchdog (crash recovery), log export, reboot/power menu
 - **🔒 Security**: see "Security model" below
@@ -121,6 +123,11 @@ Reboot → you land in TVIEW (box mode) or the desktop (desktop mode).
 | Settings key | Open Settings |
 | Long-press Back 3s | Return from Android app to TVIEW |
 
+## Remote interaction (Android TV paradigm)
+
+- **Main screen**: Up/Down move focus between the top nav row (Settings/App Install/Exit box/Power) and the app grid; Back moves focus to the nav row; OK activates the focused item
+- **Settings** (fullscreen): Left/Right switch category or change value, Up/Down move options, OK confirm/enter, Back steps out level by level (sub-page → category → main); security options show risk notes below
+
 ## VNC remote (box mode)
 
 In box mode TVIEW starts a VNC server automatically (`box-IP:5900`). Connect with any VNC client (RealVNC/TigerVNC…) to view and control the TVIEW UI remotely.
@@ -135,7 +142,7 @@ In desktop mode (after remote work / when you come back), turning on a display a
 - Settings → **Wake TVIEW on display on** (default ON); turning it off fully disables the feature
 - Wake modes: **any display** turns on → wake, or **specific displays only** (checklist, e.g. only the TV)
 - Detection reads the Linux DRM layer — **all interfaces (HDMI/DP/VGA/DVI/USB-C) work uniformly**; the list shows connector + vendor/model
-- Security: never bypasses authentication (TVIEW started while locked becomes visible after unlock); box mode keeps TVIEW resident and needs no such feature
+- Security: never bypasses authentication; **enabling this feature also disables the system idle screen lock** (otherwise the lock would cover TVIEW); box mode keeps TVIEW resident and needs no such feature
 - Note: when picking "specific displays", the display must be powered on to appear in the list
 
 ## Run from source / build

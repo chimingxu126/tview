@@ -1,4 +1,4 @@
-# QiShi TVIEW v0.3.0-beta.1 Release Notes
+# QiShi TVIEW v0.4.0-beta.1 Release Notes
 
 > Turn an Ubuntu PC into a TV box.
 > Repo: <https://github.com/chimingxu126/tview> · License: MIT
@@ -7,14 +7,18 @@
 
 TVIEW is a TV-box launcher for Ubuntu: PyQt5 fullscreen UI + Waydroid Android container + keyd remote driver. Plug a TV and a remote into an ordinary x86 PC and it becomes a box that runs Android TV apps.
 
-**v0.3 headline: Wake TVIEW on display on**
-- In desktop mode, **turning on a display auto-opens TVIEW** — remote-work all day, come home and turn on the TV to get the box UI directly
-- Switchable in Settings (default ON); choose **any display** or **specific displays only** (checklist with connector + vendor/model)
-- Detection reads the Linux DRM layer — **all interfaces (HDMI/DP/VGA/DVI/USB-C) work uniformly**; never bypasses authentication; no conflict with L1/L2 security models
+**v0.4 headline: UI overhaul (Android TV paradigm)**
+- **Top navigation row** on the main screen (Settings/App Install/Exit box/Power); Back moves focus to the nav row — fully remote-operable
+- **Settings rewritten as a fullscreen view**: category rail + option list, no dropdowns; Up/Down move, Left/Right change, OK confirm, Back steps out; security options show risk notes inline
+- **App Install center**: Dangbei/F-Droid/USB unified; **USB auto-mount into Android** (switch); **return to TVIEW when apps exit** (switch)
+- Fixes: settings could not scroll, language dropdown trapped the remote, display-wake was covered by the screen lock (wake now disables idle lock automatically)
 
 ## Features
 
 - 🖥️ **Wake TVIEW on display on** (new in BETA 0.3): auto-enters TVIEW when a display turns on; any/specific displays
+- 🏠 **Top navigation** (BETA 0.4): Settings/App Install/Exit box/Power at the top; Back goes straight to it
+- 📄 **Fullscreen Settings** (BETA 0.4): categorized + remote interaction + risk notes
+- 💾 **USB auto-mount into Android** + **return to TVIEW on app exit** (BETA 0.4)
 - 🏠 Fullscreen TV UI: app grid (adjustable columns), top status bar, bottom navigation
 - 📱 Waydroid Android container: ARM-only apps (Dangbei/CoolApk…) via libhoudini translation; instant app list, APK install (USB/local/store)
 - 🐧 Native Linux apps (Kodi/Firefox…) in the same grid as Android apps
@@ -22,7 +26,7 @@ TVIEW is a TV-box launcher for Ubuntu: PyQt5 fullscreen UI + Waydroid Android co
 - 🔒 Security: TV box mode (default, labwc kiosk session, remote is the only entry) + exit-locks-screen (desktop mode default) + optional VNC password
 - 🎨 5 built-in themes + custom colors/wallpaper, contrast auto-guaranteed
 - 🌐 Chinese & English UI, one-click switch
-- 📦 Built-in stores: F-Droid (auto-download), Dangbei Market (guided)
+- 📦 App Install center: F-Droid (auto-download), Dangbei Market (guided), USB install
 - ⚡ Auto-start (optional at install, default on), watchdog, log export, power menu
 
 ## Installation

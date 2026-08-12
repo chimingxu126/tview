@@ -49,6 +49,8 @@ def run_watch(config) -> int:
     if not dw.get("enabled", True):
         logger.info("显示器唤醒 TVIEW 已关闭（设置里开启）")
         return 0
+    # 联动：唤醒功能开启时禁用 GNOME 闲置锁屏（否则锁屏会挡住唤醒的 TVIEW）
+    _disable_idle_lock()
     mode = dw.get("mode", "any")  # any / specific
     targets = set(dw.get("targets") or [])
     if mode == "specific" and not targets:
@@ -64,3 +66,16 @@ def run_watch(config) -> int:
             logger.info("显示器开启: %s → 唤醒 TVIEW", hit)
             _launch_tview()
     return 0
+
+
+def _disable_idle_lock() -> None:
+    """禁用 GNOME 闲置锁屏（idle-delay=0 + lock-enabled=false）。
+    桌面模式 + 显示器唤醒组合必需；盒子模式（labwc）无锁屏，天然不受影响。"""
+    try:
+        subprocess.run(["gsettings", "set", "org.gnome.desktop.session",
+                        "idle-delay", "0"], timeout=8, capture_output=True)
+        subprocess.run(["gsettings", "set", "org.gnome.desktop.screensaver",
+                        "lock-enabled", "false"], timeout=8, capture_output=True)
+        logger.info("已禁用 GNOME 闲置锁屏（显示器唤醒联动）")
+    except Exception as e:
+        logger.warning("禁用闲置锁屏失败: %s", e)
