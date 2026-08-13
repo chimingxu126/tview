@@ -516,6 +516,11 @@ class SettingsView(QDialog):
     # ---------------- 事件 ----------------
     def eventFilter(self, obj, ev):
         if ev.type() == ev.Type.KeyPress:
+            # 有子对话框（U盘安装/软件安装/按键映射/添加应用等）打开时，
+            # 按键交给子对话框处理（否则返回键/回车会被设置页吞掉）
+            modal = QApplication.activeModalWidget()
+            if modal is not None and modal is not self:
+                return False
             return self._on_key(ev.key())
         return False
 

@@ -1963,6 +1963,15 @@ class UsbInstallDialog(QDialog):
         self.waydroid = waydroid
         self.config = config
         self.setWindowTitle(tr("dlg_usb_install"))
+        self.setMinimumWidth(460)
+        self.setStyleSheet(
+            "QDialog{background:#1a2338;color:#eef2ff;}"
+            "QLabel{font-size:18px;color:#eef2ff;}"
+            "QPushButton{background:rgba(255,255,255,0.10);color:#eef2ff;"
+            "border:2px solid rgba(255,255,255,0.18);border-radius:10px;"
+            "font-size:17px;padding:8px 20px;}"
+            "QPushButton:hover{background:rgba(255,255,255,0.18);}"
+            "QPushButton#apkBtn{text-align:left;font-size:18px;padding:10px 14px;margin:3px 0;}")
         root = QVBoxLayout(self)
         root.addWidget(QLabel(tr("usb_list")))
         self.list_widget = QVBoxLayout()
@@ -1987,6 +1996,8 @@ class UsbInstallDialog(QDialog):
             return
         for apk in sorted(apks, key=lambda p: p.name):
             btn = QPushButton(f"📦 {apk.name}  ({apk.parent.name}/)")
+            btn.setObjectName("apkBtn")
+            btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(lambda _, p=apk: self._install(p))
             self.list_widget.addWidget(btn)
 
