@@ -18,7 +18,7 @@ TVIEW is a TV-box launcher for Ubuntu: plug a TV and a remote control into an or
 
 ## Features
 
-- **🏠 Fullscreen TV UI**: app grid + top status bar (clock/date/network) + bottom navigation, fully remote-controlled
+- **🏠 Fullscreen TV UI**: app grid + top status bar (clock/date/network) + bottom navigation, fully remote-controlled (Settings also supports mouse/keyboard clicks with bottom Back/Exit buttons)
 - **📱 Android TV ecosystem**: full Android via Waydroid; ARM-only apps (Dangbei, CoolApk…) run through the libhoudini translation layer
 - **🎮 Remote control out of the box**: 2.4G remotes work instantly — Back/Home/Menu/Volume work natively inside Android apps; directional pad/OK navigate the UI; keys are remappable
 - **🐧 Native Linux apps**: add any Linux app (Kodi, Firefox…) from Settings; it joins the same grid and remote navigation as Android apps
