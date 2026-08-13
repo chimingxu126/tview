@@ -18,7 +18,7 @@ import logging
 import tarfile
 from pathlib import Path
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QDialog, QFrame, QHBoxLayout, QLabel,
                              QListWidget, QListWidgetItem, QMessageBox, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 FOCUS_QSS = (
     "QFrame#row{background:rgba(255,255,255,0.07);border-radius:12px;}"
+    "QFrame#row:hover{background:rgba(255,255,255,0.12);}"
     "QFrame#row[focus=true]{background:rgba(255,255,255,0.16);"
     "border:2px solid #ffffff;}"
     "QFrame#row QLabel#rowName{font-size:22px;color:#eef2ff;border:none;background:transparent;}"
@@ -43,9 +44,24 @@ FOCUS_QSS = (
     "QFrame#row[focus=true] QLabel#rowValue{color:#ffffff;}"
 )
 
+# 底部导航按钮（返回上一层 / 退出设置）：鼠标可点，遥控器/键盘可导航到
+BTN_QSS = (
+    "QPushButton#navBtn{background:rgba(255,255,255,0.08);color:#eef2ff;"
+    "border:2px solid rgba(255,255,255,0.15);border-radius:14px;"
+    "font-size:20px;padding:10px 28px;}"
+    "QPushButton#navBtn:hover{background:rgba(255,255,255,0.16);border-color:#ffffff;}"
+    "QPushButton#navBtn[focus=true]{background:rgba(255,255,255,0.22);"
+    "border:2px solid #ffffff;}"
+)
+
 
 class Row(QFrame):
-    """设置行：名称 + 当前值 + 箭头（动作行）+ 可选风险说明。"""
+    """设置行：名称 + 当前值 + 箭头（动作行）+ 可选风险说明。
+
+    鼠标左键点击行 = 选中 + 激活（与遥控器 OK 键同语义）。
+    """
+
+    clicked = pyqtSignal()
 
     def __init__(self, spec: dict, getter, setter, parent=None):
         super().__init__(parent)
@@ -54,6 +70,7 @@ class Row(QFrame):
         self._set = setter
         self.setObjectName("row")
         self.setProperty("focus", False)
+        self.setCursor(Qt.PointingHandCursor)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 10, 18, 10)
         lay.setSpacing(2)
@@ -102,6 +119,13 @@ class Row(QFrame):
         self.style().unpolish(self)
         self.style().polish(self)
 
+    def mousePressEvent(self, e) -> None:
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
     def activate(self) -> bool:
         """OK 键动作。返回 True=需要关闭设置页。"""
         spec = self.spec
@@ -135,10 +159,11 @@ class SettingsView(QDialog):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(
             f"QDialog{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"stop:0 {c1},stop:1 {c2});}}{FOCUS_QSS}")
+            f"stop:0 {c1},stop:1 {c2});}}{FOCUS_QSS}{BTN_QSS}")
         self.side = "left"
         self.cat_idx = 0
         self.row_idx = 0
+        self.btn_idx = 0
         global CATS
         CATS = _init_cats(self)
         self._build_ui()
@@ -148,9 +173,12 @@ class SettingsView(QDialog):
 
     # ---------------- UI ----------------
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
-        root.setContentsMargins(36, 28, 36, 28)
-        root.setSpacing(24)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(36, 28, 36, 20)
+        root.setSpacing(16)
+
+        top = QHBoxLayout()
+        top.setSpacing(24)
 
         left_box = QVBoxLayout()
         title = QLabel(tr("dlg_settings"))
@@ -162,20 +190,41 @@ class SettingsView(QDialog):
         self.cat_list.setStyleSheet(
             "QListWidget{background:transparent;border:none;font-size:20px;color:#aab4cc;}"
             "QListWidget::item{height:52px;padding-left:16px;border-radius:10px;}"
+            "QListWidget::item:hover{background:rgba(255,255,255,0.10);}"
             "QListWidget::item:selected{background:rgba(255,255,255,0.16);color:#ffffff;}")
         self.cat_list.setFixedWidth(220)
         for cat in CATS:
             it = QListWidgetItem(cat["title"])
             self.cat_list.addItem(it)
+        self.cat_list.itemClicked.connect(self._on_cat_clicked)
         left_box.addWidget(self.cat_list, 1)
         hint = QLabel(tr("settings_hint"))
         hint.setStyleSheet("font-size:14px;color:#8a93ad;")
         hint.setWordWrap(True)
         left_box.addWidget(hint)
-        root.addLayout(left_box)
+        top.addLayout(left_box)
 
         self.stack = QStackedWidget()
-        root.addWidget(self.stack, 1)
+        top.addWidget(self.stack, 1)
+        root.addLayout(top, 1)
+
+        # 底部导航按钮：返回上一层 / 退出设置（鼠标可点，遥控器可导航到）
+        bar = QHBoxLayout()
+        bar.setSpacing(14)
+        bar.addStretch(1)
+        self.btn_back = QPushButton(tr("nav_back"))
+        self.btn_back.setObjectName("navBtn")
+        self.btn_back.setProperty("focus", False)
+        self.btn_back.setCursor(Qt.PointingHandCursor)
+        self.btn_back.clicked.connect(self._back_step)
+        self.btn_exit = QPushButton(tr("nav_exit"))
+        self.btn_exit.setObjectName("navBtn")
+        self.btn_exit.setProperty("focus", False)
+        self.btn_exit.setCursor(Qt.PointingHandCursor)
+        self.btn_exit.clicked.connect(self._close_settings)
+        bar.addWidget(self.btn_back)
+        bar.addWidget(self.btn_exit)
+        root.addLayout(bar)
 
     def _build_cat_page(self, cat: dict) -> QWidget:
         page = QWidget()
@@ -188,6 +237,7 @@ class SettingsView(QDialog):
         rows = []
         for spec in cat["rows"]:
             row = Row(spec, self.config.get, self.config.set, page)
+            row.clicked.connect(lambda r=row: self._on_row_clicked(r))
             rows.append(row)
             lay.addWidget(row)
         lay.addStretch(1)
@@ -213,23 +263,41 @@ class SettingsView(QDialog):
         # 左侧分类高亮
         for i in range(self.cat_list.count()):
             self.cat_list.item(i).setSelected(self.side == "left" and i == self.cat_idx)
+        # 底部按钮高亮（btns 态）
+        self.btn_back.setProperty("focus", self.side == "btns" and self.btn_idx == 0)
+        self.btn_exit.setProperty("focus", self.side == "btns" and self.btn_idx == 1)
+        for b in (self.btn_back, self.btn_exit):
+            b.style().unpolish(b)
+            b.style().polish(b)
 
     def _on_key(self, key: int) -> bool:
         rows = self._rows()
         if key in (Qt.Key_Up, Qt.Key_Down):
+            d = 1 if key == Qt.Key_Down else -1
             if self.side == "left":
                 n = self.cat_list.count()
-                self.cat_idx = (self.cat_idx + (1 if key == Qt.Key_Down else -1)) % n
+                self.cat_idx = (self.cat_idx + d) % n
                 self.stack.setCurrentIndex(self.cat_idx)
                 self.row_idx = 0
-            else:
+            elif self.side == "right":
                 if rows:
-                    n = len(rows)
-                    self.row_idx = (self.row_idx + (1 if key == Qt.Key_Down else -1)) % n
+                    # 列表与底部按钮区双向可达：末行 Down→按钮区，首行 Up→按钮区
+                    if key == Qt.Key_Down and self.row_idx == len(rows) - 1:
+                        self.side = "btns"
+                        self.btn_idx = 0
+                    elif key == Qt.Key_Up and self.row_idx == 0:
+                        self.side = "btns"
+                        self.btn_idx = 1
+                    else:
+                        self.row_idx = (self.row_idx + d) % len(rows)
+            else:  # btns
+                self.btn_idx = (self.btn_idx + d) % 2
             self._apply_highlight()
             return True
         if key in (Qt.Key_Left, Qt.Key_Right):
-            if self.side == "left" and key == Qt.Key_Right:
+            if self.side == "btns":
+                self.side = "right"
+            elif self.side == "left" and key == Qt.Key_Right:
                 self.side = "right"
             elif self.side == "right" and key == Qt.Key_Left:
                 self.side = "left"
@@ -244,21 +312,53 @@ class SettingsView(QDialog):
         if key in (Qt.Key_Return, Qt.Key_Enter):
             if self.side == "left":
                 self.side = "right"
-            elif rows:
+            elif self.side == "right" and rows:
                 rows[self.row_idx % len(rows)].activate()
+            elif self.side == "btns":
+                (self.btn_back if self.btn_idx == 0 else self.btn_exit).click()
             self._apply_highlight()
             return True
         if key in (Qt.Key_Back, Qt.Key_Backspace):
             if self.side == "right":
                 self.side = "left"
-                self._apply_highlight()
+            elif self.side == "btns":
+                self.side = "right"
             else:
                 self._close_settings()
+            self._apply_highlight()
             return True
         if key == Qt.Key_Home:
             self._close_settings()
             return True
         return False
+
+    # ---------------- 鼠标支持 ----------------
+    def _on_row_clicked(self, row: Row) -> None:
+        """鼠标点击行：选中 + 激活（switch/action 立即执行，option 仅选中）。"""
+        rows = self._rows()
+        if row not in rows:
+            return
+        self.side = "right"
+        self.row_idx = rows.index(row)
+        self._apply_highlight()
+        if row.spec["type"] in ("switch", "action"):
+            row.activate()
+
+    def _on_cat_clicked(self, item) -> None:
+        """鼠标点击左侧分类：切页。"""
+        self.cat_idx = self.cat_list.row(item)
+        self.stack.setCurrentIndex(self.cat_idx)
+        self.row_idx = 0
+        self.side = "left"
+        self._apply_highlight()
+
+    def _back_step(self) -> None:
+        """返回上一层：右栏→左栏；左栏/按钮区→退出设置。"""
+        if self.side in ("right", "btns"):
+            self.side = "left"
+            self._apply_highlight()
+        else:
+            self._close_settings()
 
     def _change_option(self, row: Row, delta: int) -> None:
         spec = row.spec
